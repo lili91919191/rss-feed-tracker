@@ -150,22 +150,22 @@
 
     <div id="linux-mint" class="section">
       <h2>🐧 Linux Mint</h2>
-      <div class="loading">Chargement...</div>
+      <div class="feed-content"><div class="loading">Chargement...</div></div>
     </div>
 
     <div id="bitcoin" class="section">
       <h2>₿ Bitcoin</h2>
-      <div class="loading">Chargement...</div>
+      <div class="feed-content"><div class="loading">Chargement...</div></div>
     </div>
 
     <div id="ia" class="section">
       <h2>🤖 Agents IA</h2>
-      <div class="loading">Chargement...</div>
+      <div class="feed-content"><div class="loading">Chargement...</div></div>
     </div>
 
     <div id="meditation" class="section">
       <h2>🧘 Méditation</h2>
-      <div class="loading">Chargement...</div>
+      <div class="feed-content"><div class="loading">Chargement...</div></div>
     </div>
 
     <footer>
@@ -190,17 +190,29 @@
 
     // --- Fonction de chargement RSS ---
     async function fetchRSS(url, containerId) {
-      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const container = document.getElementById(containerId);
+      const proxies = [
+        u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+        u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      ];
+      const section = document.getElementById(containerId);
+      const container = section.querySelector(".feed-content");
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
-      try {
-        const response = await fetch(proxy);
-        if (!response.ok) throw new Error("Échec réseau");
+      let text = null;
+      for (const makeProxy of proxies) {
+        try {
+          const response = await fetch(makeProxy(url));
+          if (response.ok) { text = await response.text(); break; }
+        } catch (_) {}
+      }
+      if (!text) {
+        container.innerHTML = `<p class="error">Impossible de charger.</p>`;
+        return;
+      }
 
-        const data = await response.json();
+      try {
         const parser = new DOMParser();
-        const rss = parser.parseFromString(data.contents, "text/xml");
+        const rss = parser.parseFromString(text, "text/xml");
         const items = rss.querySelectorAll("item");
 
         if (items.length === 0) {
@@ -211,21 +223,36 @@
         container.innerHTML = '';
         items.forEach(item => {
           const title = item.querySelector("title")?.textContent || "Sans titre";
-          const link = item.querySelector("link")?.textContent || "#";
+
+          // <link> en RSS est un nœud texte placé après l'élément lui-même
+          const linkEl = item.querySelector("link");
+          const link = (linkEl?.nextSibling?.nodeValue || linkEl?.textContent || "").trim();
+          const safeLink = /^https?:\/\//i.test(link) ? link : "#";
+
           const dateNode = item.querySelector("pubDate") || item.querySelector("dc\\:date");
-          const date = dateNode?.textContent || "Date inconnue";
-          const formattedDate = new Date(date).toLocaleDateString('fr-FR', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
+          const dateRaw = dateNode?.textContent || "";
+          const dateObj = dateRaw ? new Date(dateRaw) : null;
+          const formattedDate = (dateObj && !isNaN(dateObj))
+            ? dateObj.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
+            : "Date inconnue";
 
           const article = document.createElement("div");
           article.className = "article";
-          article.innerHTML = `
-            <h3><a href="${link}" target="_blank" rel="noopener">${title}</a></h3>
-            <div class="date">${formattedDate}</div>
-          `;
+
+          const h3 = document.createElement("h3");
+          const a = document.createElement("a");
+          a.href = safeLink;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = title;
+          h3.appendChild(a);
+
+          const dateDiv = document.createElement("div");
+          dateDiv.className = "date";
+          dateDiv.textContent = formattedDate;
+
+          article.appendChild(h3);
+          article.appendChild(dateDiv);
           container.appendChild(article);
         });
       } catch (error) {
