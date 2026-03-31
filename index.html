@@ -59,6 +59,28 @@
       font-size: 1em;
     }
 
+    .refresh-btn {
+      padding: 12px;
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      background-color: var(--accent);
+      color: #111;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .refresh-btn:active {
+      opacity: 0.7;
+    }
+
+    .refresh-btn.loading {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
     .section {
       background: var(--card-bg);
       border-radius: 12px;
@@ -170,6 +192,7 @@
 
     <div class="controls">
       <input type="text" id="searchInput" class="search-box" placeholder="🔍 Rechercher un article..." />
+      <button id="refreshBtn" class="refresh-btn">🔄 Actualiser les flux</button>
     </div>
 
     <div id="linux-mint" class="section">
@@ -248,6 +271,18 @@
   </div>
 
   <script>
+    // --- Bouton Actualiser ---
+    const refreshBtn = document.getElementById("refreshBtn");
+    refreshBtn.addEventListener("click", () => {
+      refreshBtn.classList.add("loading");
+      refreshBtn.textContent = "⏳ Chargement...";
+      loadAllFeeds();
+      setTimeout(() => {
+        refreshBtn.classList.remove("loading");
+        refreshBtn.textContent = "🔄 Actualiser les flux";
+      }, 3000);
+    });
+
     // --- Accordéon : clic sur h2 pour masquer/afficher les articles ---
     document.querySelectorAll('.section h2').forEach(h2 => {
       h2.addEventListener('click', () => {
