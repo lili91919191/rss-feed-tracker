@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#1a1a1a" />
   <title>Suivi RSS - Linux Mint, Bitcoin, IA, Méditation</title>
 
-  <!-- Lien vers le manifest PWA -->
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192x192.png" />
 
@@ -57,6 +56,29 @@
       color: var(--text);
       outline: none;
       font-size: 1em;
+      box-sizing: border-box;
+    }
+
+    .refresh-btn {
+      padding: 14px;
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      background-color: var(--accent);
+      color: #111;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .refresh-btn:active {
+      opacity: 0.7;
+    }
+
+    .refresh-btn.loading {
+      opacity: 0.5;
+      pointer-events: none;
     }
 
     .section {
@@ -139,9 +161,7 @@
       padding: 20px 0;
     }
 
-    .error {
-      color: #e74c3c;
-    }
+    .error { color: #e74c3c; }
 
     footer {
       text-align: center;
@@ -152,12 +172,8 @@
     }
 
     @media (max-width: 600px) {
-      .section {
-        padding: 15px;
-      }
-      header h1 {
-        font-size: 1.5em;
-      }
+      .section { padding: 15px; }
+      header h1 { font-size: 1.5em; }
     }
   </style>
 </head>
@@ -170,6 +186,7 @@
 
     <div class="controls">
       <input type="text" id="searchInput" class="search-box" placeholder="🔍 Rechercher un article..." />
+      <button id="refreshBtn" class="refresh-btn">🔄 Actualiser les flux</button>
     </div>
 
     <div id="linux-mint" class="section">
@@ -248,7 +265,19 @@
   </div>
 
   <script>
-    // --- Accordéon : clic sur h2 pour masquer/afficher les articles ---
+    // --- Bouton Actualiser ---
+    const refreshBtn = document.getElementById("refreshBtn");
+    refreshBtn.addEventListener("click", () => {
+      refreshBtn.classList.add("loading");
+      refreshBtn.textContent = "⏳ Chargement...";
+      loadAllFeeds();
+      setTimeout(() => {
+        refreshBtn.classList.remove("loading");
+        refreshBtn.textContent = "🔄 Actualiser les flux";
+      }, 3000);
+    });
+
+    // --- Accordéon ---
     document.querySelectorAll('.section h2').forEach(h2 => {
       h2.addEventListener('click', () => {
         h2.closest('.section').classList.toggle('collapsed');
@@ -300,17 +329,17 @@
       });
     }
 
-    // --- Chargement via rss2json (JSON) ---
+    // --- rss2json ---
     async function tryRss2Json(url) {
       const api = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
       const res = await fetch(api);
       if (!res.ok) throw new Error("rss2json HTTP " + res.status);
       const data = await res.json();
-      if (data.status !== "ok") throw new Error("rss2json status: " + data.status);
+      if (data.status !== "ok") throw new Error("rss2json: " + data.status);
       return data.items.map(i => ({ title: i.title, link: i.link, date: i.pubDate }));
     }
 
-    // --- Chargement via proxy XML (fallback) ---
+    // --- Proxy XML (fallback) ---
     async function tryXmlProxy(url) {
       const proxies = [
         u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -339,19 +368,15 @@
       throw new Error("Tous les proxies ont échoué");
     }
 
-    // --- Fonction de chargement RSS ---
+    // --- Chargement RSS ---
     async function fetchRSS(url, containerId) {
       const section = document.getElementById(containerId);
       const container = section.querySelector(".feed-content");
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         let items;
-        try {
-          items = await tryRss2Json(url);
-        } catch (_) {
-          items = await tryXmlProxy(url);
-        }
+        try { items = await tryRss2Json(url); }
+        catch (_) { items = await tryXmlProxy(url); }
         if (items.length === 0) {
           container.innerHTML = '<p class="error">Aucun article trouvé.</p>';
           return;
@@ -363,7 +388,7 @@
       }
     }
 
-    // --- Liste des flux ---
+    // --- Flux ---
     const feeds = [
       { url: "https://blog.linuxmint.com/?feed=rss2", id: "linux-mint" },
       { url: "https://www.phoronix.com/rss.php", id: "linux-phoronix" },
@@ -374,14 +399,13 @@
       { url: "https://news.google.com/rss/search?q=bitcoin&hl=fr&gl=FR&ceid=FR:fr", id: "bitcoin" },
       { url: "https://venturebeat.com/category/ai/feed/", id: "ia" },
       { url: "https://www.mindful.org/feed/", id: "meditation" },
-      { url: "https://news.google.com/rss/search?q=géopolitique+international&hl=fr&gl=FR&ceid=FR:fr", id: "geopolitique" },
-      { url: "https://news.google.com/rss/search?q=actualité+france&hl=fr&gl=FR&ceid=FR:fr", id: "france" },
+      { url: "https://news.google.com/rss/search?q=g%C3%A9opolitique+international&hl=fr&gl=FR&ceid=FR:fr", id: "geopolitique" },
+      { url: "https://news.google.com/rss/search?q=actualit%C3%A9+france&hl=fr&gl=FR&ceid=FR:fr", id: "france" },
       { url: "https://news.google.com/rss/search?q=antilles+guadeloupe+martinique&hl=fr&gl=FR&ceid=FR:fr", id: "antilles" },
       { url: "https://news.google.com/rss/search?q=BRICS&hl=fr&gl=FR&ceid=FR:fr", id: "brics" },
       { url: "https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr", id: "tendances" }
     ];
 
-    // --- Charger les flux ---
     function loadAllFeeds() {
       feeds.forEach(feed => fetchRSS(feed.url, feed.id));
     }
@@ -389,7 +413,6 @@
     loadAllFeeds();
     setInterval(loadAllFeeds, 5 * 60 * 1000);
 
-    // --- Enregistrement du Service Worker (PWA) ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
