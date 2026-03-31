@@ -190,18 +190,29 @@
 
     // --- Fonction de chargement RSS ---
     async function fetchRSS(url, containerId) {
-      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const proxies = [
+        u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+        u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      ];
       const section = document.getElementById(containerId);
       const container = section.querySelector(".feed-content");
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
-      try {
-        const response = await fetch(proxy);
-        if (!response.ok) throw new Error("Échec réseau");
+      let text = null;
+      for (const makeProxy of proxies) {
+        try {
+          const response = await fetch(makeProxy(url));
+          if (response.ok) { text = await response.text(); break; }
+        } catch (_) {}
+      }
+      if (!text) {
+        container.innerHTML = `<p class="error">Impossible de charger.</p>`;
+        return;
+      }
 
-        const data = await response.json();
+      try {
         const parser = new DOMParser();
-        const rss = parser.parseFromString(data.contents, "text/xml");
+        const rss = parser.parseFromString(text, "text/xml");
         const items = rss.querySelectorAll("item");
 
         if (items.length === 0) {
